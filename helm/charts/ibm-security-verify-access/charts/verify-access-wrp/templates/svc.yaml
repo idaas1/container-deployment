@@ -3,6 +3,8 @@
 {{- $dot := . }}
 {{- range $index, $inst := .Values.container.instances }}
 {{- $instance := lower $inst.name }}
+{{- $servicename := $inst.servicename }}
+{{- $servicetype := (default $.Values.service.type $inst.servicetype) }}
 {{- $nodePort := $inst.nodePort }}
 {{- $index    := (printf "%d" $index) }}
 
@@ -15,17 +17,21 @@ apiVersion: v1
 kind: Service
 
 metadata:
+{{- if $servicename }}
+  name: {{ $servicename }}
+{{- else }}
   name: {{ include "wrp.name" (list $dot $instance) }}
+{{- end }}
   labels:
 {{ include "sch.metadata.labels.standard" (list $dot "") | indent 4 }}
 
 spec:
-  type: {{ $.Values.service.type }}
+  type: {{ default "ClusterIP" $servicetype }}
 
   ports:
    - name: {{ include "wrp.service.name" (list $dot $index) }}
      port: {{ template "runtime.port" $dot }}
-{{ if and (eq $.Values.service.type "NodePort") $nodePort }}
+{{- if and (eq $servicetype "NodePort") $nodePort }}
      nodePort: {{ $nodePort }}
 {{- end }}
 

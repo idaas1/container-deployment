@@ -53,7 +53,7 @@ done
 rm -rf $TMPDIR
 
 # Restart config container to apply updated files
-echo "Restarting Config Container..."
-kubectl exec ${ISVACONFIG} -- isam_cli -c reload all
+echo "Killing Config Pod (a new one will be started)..."
+kubectl delete pod ${ISVACONFIG}
 
 echo "Done."

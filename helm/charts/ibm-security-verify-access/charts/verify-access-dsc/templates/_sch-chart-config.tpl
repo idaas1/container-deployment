@@ -27,7 +27,7 @@ sch:
     metering:
       productName: "IBM Security Verify Access"
       productID: "5725-V90"
-      productVersion: "10.0.0.0"
+      productVersion: "10.0.2.0"
     nodeAffinity:
       nodeAffinityRequiredDuringScheduling:
         operator: In

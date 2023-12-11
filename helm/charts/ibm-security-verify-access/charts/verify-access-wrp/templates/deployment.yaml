@@ -50,14 +50,9 @@ spec:
 {{- include "sch.metadata.annotations.metering" (list $dot $.sch.chart.metering) | indent 8 }}
 
     spec:
-
       hostNetwork:    false
       hostPID:        false
       hostIPC:        false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser:    6000
-
       affinity:
 {{- include "sch.affinity.nodeAffinity" (list $dot) | indent 8 }}
         podAntiAffinity:
@@ -77,44 +72,15 @@ spec:
 
       containers:
       - name:  {{ include "wrp.name" (list $dot $instance) }}
-
-        securityContext:
-          privileged:               false
-          readOnlyRootFilesystem:   false
-          allowPrivilegeEscalation: true
-          runAsNonRoot:             true
-          runAsUser:                6000
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - CHOWN
-            - DAC_OVERRIDE
-            - FOWNER
-            - KILL
-            - NET_BIND_SERVICE
-            - SETFCAP
-            - SETGID
-            - SETUID
-
-        image: "{{ $.Values.global.image.repository }}"
+        image: "{{ $.Values.global.image.wrprepository }}"
         imagePullPolicy: {{ default "IfNotPresent" $.Values.global.image.pullPolicy | quote }}
         env:
         - name: SNAPSHOT
           value: {{ default "" $.Values.global.container.snapshot | quote }}
         - name: FIXPACKS
           value: {{ default "" $.Values.global.container.fixpacks | quote }}
-        - name: SERVICE
-          value: webseal
         - name: INSTANCE
           value: {{ printf "%s" $wrp_instance }}
-        - name: ADMIN_PWD
-          valueFrom:
-            secretKeyRef:
-              name: {{ template "admin.secret" $dot }}
-              key: {{ template "admin.secret.key" $dot }}
-        - name: AUTO_RELOAD_FREQUENCY
-          value: {{ default "" $.Values.global.container.autoReloadInterval | quote }}
         - name: CONTAINER_TIMEZONE
           value: {{ default "" $.Values.global.container.timezone | quote }}
         - name: CONFIG_SERVICE_URL
@@ -134,6 +100,7 @@ spec:
             - livenessProbe
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 2
 
         readinessProbe:
           exec:
@@ -145,12 +112,11 @@ spec:
             {{- end }}
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 2
 
         ports:
         - name: {{ include "wrp.service.name" (list $dot $index) }}
           containerPort: {{ template "runtime.port" $dot }}
-        - name: {{ include "wrp.admin.service.name" (list $dot $index) }}
-          containerPort: {{ template "admin.port" $dot }}
 
         resources:
 {{ toYaml $.Values.resources | indent 10 }}

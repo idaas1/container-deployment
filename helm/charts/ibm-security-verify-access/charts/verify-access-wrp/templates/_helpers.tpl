@@ -37,10 +37,3 @@ Our service names.
 {{- $root := first $params -}}
 {{- printf "isvawrp-%s" (index $params 1) -}}
 {{- end -}}
-
-{{- define "wrp.admin.service.name" -}}
-{{- $params := . -}}
-{{- $root := first $params -}}
-{{- printf "wrp-adm-%s" (index $params 1) -}}
-{{- end -}}
-

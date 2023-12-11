@@ -18,7 +18,7 @@ mkdir $TMPDIR
 ISVACONFIG="$(kubectl get --no-headers=true pods -l app=isvaconfig -o custom-columns=:metadata.name)"
 
 # Copy the current snapshots from isvaconfig container
-SNAPSHOTS=`kubectl exec ${ISVACONFIG} ls /var/shared/snapshots`
+SNAPSHOTS=`kubectl exec ${ISVACONFIG} -- ls /var/shared/snapshots`
 for SNAPSHOT in $SNAPSHOTS; do
 kubectl cp ${ISVACONFIG}:/var/shared/snapshots/$SNAPSHOT $TMPDIR/$SNAPSHOT
 done
@@ -36,6 +36,6 @@ kubectl exec ${POSTGRESQL} -- /usr/local/bin/pg_dump isva > $TMPDIR/isva.db
 
 cp -R ${DOCKERKEYS} ${TMPDIR}
 
-tar -cf isva-backup-$RANDOM.tar -C ${TMPDIR} .
+tar -cvf isva-backup-$RANDOM.tar -C ${TMPDIR} .
 rm -rf ${TMPDIR}
 echo Done.

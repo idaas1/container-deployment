@@ -31,8 +31,43 @@ message: |-
   Secret containing Config Admin credentials: ${CORE_APP_NAME}-lmi
 
 objects:
-- apiVersion: apps/v1
-  kind: Deployment
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      build: ${APP_NAME}-wrp
+    name: ${APP_NAME}-wrp
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: '${APP_NAME}-wrp:latest'
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      dockerStrategy: {}
+      type: Docker
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      build: ${APP_NAME}-wrp
+    name: ${APP_NAME}-wrp
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - annotations: null
+        from:
+          kind: DockerImage
+          name: 'docker.io/ibmcom/verify-access-wrp:${ISVA_VERSION}'
+        importPolicy: {}
+        name: base
+        referencePolicy:
+          type: Source
+- apiVersion: v1
+  kind: DeploymentConfig
   metadata:
     annotations:
       deployment.kubernetes.io/revision: "1"
@@ -47,10 +82,17 @@ objects:
     replicas: 1
     revisionHistoryLimit: 10
     selector:
-      matchLabels:
-        name: ${CORE_APP_NAME}-${INSTANCE_NAME}
+      name: ${CORE_APP_NAME}-${INSTANCE_NAME}
     triggers:
       - type: ConfigChange
+      - type: ImageChange
+        imageChangeParams:
+          automatic: true
+          from:
+            kind: ImageStreamTag
+            name: ${CORE_APP_NAME}-wrp:latest
+          containerNames:
+            - ${CORE_APP_NAME}-${INSTANCE_NAME}
     template:
       metadata:
         creationTimestamp: null
@@ -80,35 +122,15 @@ objects:
             value: webseal
           - name: INSTANCE
             value: ${INSTANCE_NAME}
+          - name: SNAPSHOT
+            value: baked.snapshot
           - name: CONTAINER_TIMEZONE
             value: ${TIMEZONE}
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${CORE_APP_NAME}-core
-                key: rest-password
-          - name: AUTO_RELOAD_FREQUENCY
-            value: ${RELOAD_INTERVAL}
-          - name: CONFIG_SERVICE_URL
-            valueFrom:
-              secretKeyRef:
-                name: ${CORE_APP_NAME}-core
-                key: config-service-url
-          - name: CONFIG_SERVICE_USER_NAME
-            valueFrom:
-              secretKeyRef:
-                name: ${CORE_APP_NAME}-core
-                key: config-read-username
-          - name: CONFIG_SERVICE_USER_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${CORE_APP_NAME}-core
-                key: config-read-password
-          image: docker.io/ibmcom/verify-access:${ISVA_VERSION}
+          image: ${CORE_APP_NAME}:latest
           imagePullPolicy: IfNotPresent
           name: ${CORE_APP_NAME}-${INSTANCE_NAME}
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -131,8 +153,6 @@ objects:
           - mountPath: /var/application.logs
             name: ${CORE_APP_NAME}-${INSTANCE_NAME}-logs
         dnsPolicy: ClusterFirst
-        imagePullSecrets:
-        - name: ${PULL_SECRET}
         restartPolicy: Always
         schedulerName: default-scheduler
         terminationGracePeriodSeconds: 30
@@ -168,10 +188,6 @@ objects:
   spec:
     ports:
     - name: https
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
@@ -185,10 +201,6 @@ objects:
   status:
     loadBalancer: {}
 parameters:
-  - displayName: Verify Access Image Version
-    description: The tag that will be used to pull the ibmcom/verify-access image.
-    name: ISVA_VERSION
-    value: 10.0.0.0
   - displayName: Core Application Name
     description: The name of the core application (omit -core).  This must match what was
       configured when creating the core application.
@@ -206,16 +218,6 @@ parameters:
     description: A DNS or hosts entry must associate this hostname with IP of OpenShift router.
     name: DNS_NAME
     value: www.iamlab.ibm.com
-  - displayName: Image Pull Secret
-    description: This is an (existing) docker login secret for pulling the Access Manager image.
-      Only required if hosting images on a private repository
-    name: PULL_SECRET
-    value: dockerlogin
-  - displayName: Auto Reload Interval (0 to disable)
-    description: Interval that non-config nodes should check for updated configuration and automatically restart.
-       This should only be used in test environments.
-    name: RELOAD_INTERVAL
-    value: '5'
   - displayName: Timezone
     description: The timezone for message logging (e.g. Europe/London)
     name: TIMEZONE

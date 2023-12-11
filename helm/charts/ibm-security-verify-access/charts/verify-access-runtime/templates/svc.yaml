@@ -11,7 +11,11 @@ apiVersion: v1
 kind: Service
 
 metadata:
+{{- if $.Values.service.servicename }}
+  name: {{ $.Values.service.servicename }}
+{{- else }}
   name: {{ template "runtime.name" . }}
+{{- end }}
   labels:
 {{ include "sch.metadata.labels.standard" (list . "") | indent 4 }}
 
@@ -21,11 +25,8 @@ spec:
   ports:
    - name: {{ .sch.chart.config.servicename }}
      port: {{ template "runtime.port" . }}
-   - name: {{ .sch.chart.config.adminservicename }}
-     port: {{ template "admin.port" . }}
 
   selector:
     app: {{ template "runtime.name" . }}
 
 {{- end }}
-

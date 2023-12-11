@@ -9,14 +9,13 @@
 global:
   # Common image variables
   image:
-    dbrepository: ibmcom/verify-access-postgresql:10.0.0.0
+    dbrepository: ibmcom/verify-access-postgresql:10.0.2.0
     pullPolicy:   IfNotPresent
 
   # Container configuration.
   container:
     snapshot:            ""
     fixpacks:            ""
-    autoReloadInterval:
     timezone:           "Etc/UTC"
 
   # Persistence Storage

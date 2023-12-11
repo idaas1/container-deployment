@@ -106,7 +106,17 @@ spec:
             secretName: openldap-keys
       containers:
         - name: openldap
-          image: ibmcom/verify-access-openldap:10.0.0.0
+          image: ibmcom/verify-access-openldap:10.0.3.1
+          livenessProbe:
+            tcpSocket:
+              port: 636
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 636
+            initialDelaySeconds: 5
+            periodSeconds: 10
           ports:
             - containerPort: 636
           env:
@@ -177,7 +187,17 @@ spec:
             secretName: postgresql-keys
       containers:
         - name: postgresql
-          image: ibmcom/verify-access-postgresql:10.0.0.0
+          image: ibmcom/verify-access-postgresql:10.0.3.1
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 10
           ports:
             - containerPort: 5432
           env:
@@ -240,15 +260,13 @@ spec:
           emptyDir: {}
       containers:
         - name: isvaconfig
-          image: ibmcom/verify-access:10.0.0.0
+          image: ibmcom/verify-access:10.0.3.1
           volumeMounts:
             - mountPath: /var/shared
               name: isvaconfig
             - mountPath: /var/application.logs
               name: isvaconfig-logs
           env:
-            - name: SERVICE
-              value: config
             - name: CONTAINER_TIMEZONE
               value: Europe/London
             - name: ADMIN_PWD
@@ -256,16 +274,29 @@ spec:
                 secretKeyRef:
                   name: isvaadmin
                   key: adminpw
-          readinessProbe:
-            tcpSocket:
-              port:  9443
-            initialDelaySeconds: 5
-            periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            exec:
+              command:
+              - /sbin/health_check.sh
+              - livenessProbe
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
               port: 9443
-            initialDelaySeconds: 120
-            periodSeconds: 20
+              path: /core/login
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 2
+          startupProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
 #          command: [ "/sbin/bootstrap.sh" ]
       imagePullSecrets:
         - name: dockerlogin
@@ -303,9 +334,6 @@ spec:
       labels:
         app: isvawrprp1
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser:    6000
       volumes:
         - name: isvaconfig
           emptyDir: {}
@@ -313,23 +341,19 @@ spec:
           emptyDir: {}
       containers:
         - name: isvawrprp1
-          image: ibmcom/verify-access:10.0.0.0
+          image: ibmcom/verify-access-wrp:10.0.3.1
           ports:
-            - containerPort: 443
+            - containerPort: 9443
           volumeMounts:
             - mountPath: /var/shared
               name: isvaconfig
             - mountPath: /var/application.logs
               name: isvawrprp1-logs
           env:
-            - name: SERVICE
-              value: webseal
             - name: INSTANCE
               value: rp1
             - name: CONTAINER_TIMEZONE
               value: Europe/London
-            - name: AUTO_RELOAD_FREQUENCY
-              value: "5"
             - name: CONFIG_SERVICE_URL
               value: https://isvaconfig:9443/shared_volume
             - name: CONFIG_SERVICE_USER_NAME
@@ -344,16 +368,16 @@ spec:
               command:
               - /sbin/health_check.sh
               - livenessProbe
-            initialDelaySeconds: 10
             periodSeconds: 10
+            failureThreshold: 6
             timeoutSeconds: 2
           readinessProbe:
             exec:
               command:
               - /sbin/health_check.sh
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
+            failureThreshold: 2
       imagePullSecrets:
         - name: dockerlogin
 ---
@@ -366,7 +390,7 @@ spec:
   type: NodePort
   sessionAffinity: ClientIP
   ports:
-    - port: 443
+    - port: 9443
       name: isvawrprp1
       protocol: TCP
       nodePort: 30443
@@ -389,9 +413,6 @@ spec:
       labels:
         app: isvaruntime
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser:    6000
       volumes:
         - name: isvaconfig
           emptyDir: {}
@@ -399,21 +420,17 @@ spec:
           emptyDir: {}
       containers:
         - name: isvaruntime
-          image: ibmcom/verify-access:10.0.0.0
+          image: ibmcom/verify-access-runtime:10.0.3.1
           ports:
-            - containerPort: 443
+            - containerPort: 9443
           volumeMounts:
             - mountPath: /var/shared
               name: isvaconfig
             - mountPath: /var/application.logs
               name: isvaruntime-logs
           env:
-            - name: SERVICE
-              value: runtime
             - name: CONTAINER_TIMEZONE
               value: Europe/London
-            - name: AUTO_RELOAD_FREQUENCY
-              value: "5"
             - name: CONFIG_SERVICE_URL
               value: https://isvaconfig:9443/shared_volume
             - name: CONFIG_SERVICE_USER_NAME
@@ -428,14 +445,22 @@ spec:
               command:
               - /sbin/health_check.sh
               - livenessProbe
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
+            failureThreshold: 6
           readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /sps/static/ibm-logo.png
+            periodSeconds: 10
+            failureThreshold: 2
+            timeoutSeconds: 2
+          startupProbe:
             exec:
               command:
               - /sbin/health_check.sh
-            initialDelaySeconds: 10
+            failureThreshold: 30
             periodSeconds: 10
             timeoutSeconds: 2
       imagePullSecrets:
@@ -447,7 +472,7 @@ metadata:
   name: isvaruntime
 spec:
   ports:
-    - port: 443
+    - port: 9443
       name: isvaruntime
       protocol: TCP
   selector:
@@ -469,9 +494,6 @@ spec:
       labels:
         app: isvadsc
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser:    6000
       volumes:
         - name: isvaconfig
           emptyDir: {}
@@ -479,24 +501,20 @@ spec:
           emptyDir: {}
       containers:
         - name: isvadsc
-          image: ibmcom/verify-access:10.0.0.0
+          image: ibmcom/verify-access-dsc:10.0.3.1
           ports:
-            - containerPort: 443
-            - containerPort: 444
+            - containerPort: 9443
+            - containerPort: 9444
           volumeMounts:
             - mountPath: /var/shared
               name: isvaconfig
             - mountPath: /var/application.logs
               name: isvadsc-logs
           env:
-            - name: SERVICE
-              value: dsc
             - name: INSTANCE
               value: '1'
             - name: CONTAINER_TIMEZONE
               value: Europe/London
-            - name: AUTO_RELOAD_FREQUENCY
-              value: "5"
             - name: CONFIG_SERVICE_URL
               value: https://isvaconfig:9443/shared_volume
             - name: CONFIG_SERVICE_USER_NAME
@@ -511,16 +529,16 @@ spec:
               command:
               - /sbin/health_check.sh
               - livenessProbe
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
+            failureThreshold: 6
           readinessProbe:
             exec:
               command:
               - /sbin/health_check.sh
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
+            failureThreshold: 2
       imagePullSecrets:
         - name: dockerlogin
 ---
@@ -530,16 +548,16 @@ metadata:
   name: isvadsc
 spec:
   ports:
-    - port: 443
+    - port: 9443
       name: isvadsc-svc
       protocol: TCP
-    - port: 444
+    - port: 9444
       name: isvadsc-rep
       protocol: TCP
   selector:
     app: isvadsc
 ---
- apiVersion: networking.k8s.io/v1beta1
+ apiVersion: networking.k8s.io/v1
  kind: Ingress
  metadata:
    name: isvawrprp1
@@ -555,6 +573,9 @@ spec:
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: isvawrprp1
-          servicePort: 443
+          service:
+            name: isvawrprp1
+            port:
+              number: 9443

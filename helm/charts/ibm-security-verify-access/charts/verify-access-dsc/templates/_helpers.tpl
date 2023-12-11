@@ -39,12 +39,6 @@ Our service names.  These names are limited to 15 characters.
 {{- printf "isvadsc-%s" (index $params 1) | trunc 15 | trimSuffix "-" -}}
 {{- end -}}
 
-{{- define "dsc.admin.service.name" -}}
-{{- $params := . -}}
-{{- $root := first $params -}}
-{{- printf "isvadscadmin-%s" (index $params 1) | trunc 15 | trimSuffix "-" -}}
-{{- end -}}
-
 {{- define "dsc.replica.service.name" -}}
 {{- $params := . -}}
 {{- $root := first $params -}}

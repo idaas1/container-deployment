@@ -7,6 +7,10 @@ volumes:
   libsecauthority:
   pgdata:
 
+networks:
+  isva-network:
+    name: isva-compose-net
+
 services:
 
 #
@@ -14,11 +18,12 @@ services:
 #
 
   isvaconfig:
-    image: ibmcom/verify-access:${ISVA_VERSION}
+    image: ${CONTAINER_BASE}:${ISVA_VERSION}
     hostname: isvaconfig
+    networks:
+      - isva-network
     restart: always
     environment:
-      - SERVICE=config
 #     - SNAPSHOT=${SNAPSHOT}
 #     - FIXPACKS=${FIXPACKS}
       - CONTAINER_TIMEZONE=${TIMEZONE}
@@ -26,43 +31,41 @@ services:
     volumes:
       - isvaconfig:/var/shared
     ports:
-      - ${LMI_IP}:443:9443
+      - "${LMI_IP}:9443:9443"
     depends_on:
       - openldap
       - postgresql
 
   isvawrprp1:
-    image: ibmcom/verify-access:${ISVA_VERSION}
+    image: ${CONTAINER_BASE}-wrp:${ISVA_VERSION}
     hostname: isvawrprp1
     networks:
-      default:
+      isva-network:
         aliases:
           - www.iamlab.ibm.com
     restart: always
     environment:
-      - SERVICE=webseal
-      - INSTANCE=rp1
+#     - INSTANCE=rp1
 #     - SNAPSHOT=${SNAPSHOT}
 #     - FIXPACKS=${FIXPACKS}
       - CONTAINER_TIMEZONE=${TIMEZONE}
-      - AUTO_RELOAD_FREQUENCY=5
     volumes:
       - isvaconfig:/var/shared
     ports:
-      - ${WEB1_IP}:443:443
+      - "${WEB1_IP}:9443:9443"
     depends_on:
       - openldap
 
   isvaruntime:
-    image: ibmcom/verify-access:${ISVA_VERSION}
+    image: ${CONTAINER_BASE}-runtime:${ISVA_VERSION}
     hostname: isvaruntime
+    networks:
+      - isva-network
     restart: always
     environment:
-      - SERVICE=runtime
 #     - SNAPSHOT=${SNAPSHOT}
 #     - FIXPACKS=${FIXPACKS}
       - CONTAINER_TIMEZONE=${TIMEZONE}
-      - AUTO_RELOAD_FREQUENCY=5
     volumes:
       - isvaconfig:/var/shared
     depends_on:
@@ -70,16 +73,16 @@ services:
       - postgresql
 
   isvadsc:
-    image: ibmcom/verify-access:${ISVA_VERSION}
+    image: ${CONTAINER_BASE}-dsc:${ISVA_VERSION}
     hostname: isvadsc
+    networks:
+      - isva-network
     restart: always
     environment:
-      - SERVICE=dsc
       - INSTANCE=1
 #     - SNAPSHOT=${SNAPSHOT}
 #     - FIXPACKS=${FIXPACKS}
       - CONTAINER_TIMEZONE=${TIMEZONE}
-      - AUTO_RELOAD_FREQUENCY=5
     volumes:
       - isvaconfig:/var/shared
 
@@ -88,8 +91,10 @@ services:
 #
 
   openldap:
-    image: ibmcom/verify-access-openldap:${LDAP_VERSION}
+    image: ${CONTAINER_BASE}-openldap:${LDAP_VERSION}
     hostname: openldap
+    networks:
+      - isva-network
     restart: always
     command: --copy-service
     environment:
@@ -110,8 +115,10 @@ services:
       - ${LMI_IP}:1636:636
 
   postgresql:
-    image: ibmcom/verify-access-postgresql:${DB_VERSION}
+    image: ${CONTAINER_BASE}-postgresql:${DB_VERSION}
     hostname: postgresql
+    networks:
+      - isva-network
     restart: always
     environment:
       - POSTGRES_DB=isva

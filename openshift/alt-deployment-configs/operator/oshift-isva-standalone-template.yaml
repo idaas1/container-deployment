@@ -1,0 +1,533 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: isva-at-testcases-template
+metadata:
+  creationTimestamp: null
+  name: isva-at-testcasts-template
+  annotations:
+    openshift.io/display-name: IBM Verify Access Unit Test Template
+    iconClass: icon-sso
+    description: IBM Security Access Manager Unit Test deployment
+    openshift.io/long-description: This template deploys the core services required for an IBM
+      Security Access Manager environment.  Initially only the Config Service starts.
+    openshift.io/documentation-url: https://ibm.biz/isamdocker
+    openshift.io/provider-display-name: Lachlan Gleeson
+    openshift.io/support-url: https://ibm.biz/iamcommunity
+    tags: ibm, isam, isva
+message: |-
+
+  Application Name: ${APP_NAME}
+
+  The following services have been created in your project:
+    - ${CONFIG_SERVICE}
+    - ${RUNTIME_SERVICE}
+    - ${WEBSEAL_SERVICE}
+
+  Config Service Admin User: admin
+  Config Service Admin Password: ${ADMIN_PW}
+
+  Config Reader Username: ${CONFIG_ID}
+  Config Reader Password: ${CONFIG_PW}
+  (This user must be created in the LMI)
+
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    annotations:
+      template.openshift.io/expose-config_service_url: '{.data[''config-service-url'']}'
+      template.openshift.io/expose-config_read_username: '{.data[''config-read-username'']}'
+      template.openshift.io/expose-config_read_password: '{.data[''config-read-password'']}'
+    name: ${APP_NAME}-core
+    labels:
+      app: ${APP_NAME}-core
+  stringData:
+    config-service-url: https://${CONFIG_SERVICE}:9443/shared_volume
+    config-read-username: ${CONFIG_ID}
+    config-read-password: ${CONFIG_PW}
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    generation: 1
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-config
+    name: ${APP_NAME}-config
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: ${APP_NAME}-config
+    triggers:
+      - type: ConfigChange
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: ${APP_NAME}-core
+          name: ${APP_NAME}-config
+      spec:
+        serviceAccountName: ${SERVICE_ACCOUNT}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser:    6000
+        containers:
+        - name: ${APP_NAME}-config
+          image: ${ISVA_IMAGE_NAME}:${ISVA_VERSION}
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          livenessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+              - livenessProbe
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /core/login
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+          - mountPath: /var/shared
+            name: ${APP_NAME}-config
+          - mountPath: /var/application.logs
+            name: ${APP_NAME}-config-logs
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: ${APP_NAME}-config
+          emptyDir: {}
+        - name: ${APP_NAME}-config-logs
+          emptyDir: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    generation: 1
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-webseal
+    name: ${APP_NAME}-webseal
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: ${APP_NAME}-webseal
+    triggers:
+      - type: ConfigChange
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: ${APP_NAME}-core
+          name: ${APP_NAME}-webseal
+          isamaffinity: ${APP_NAME}-webseal
+      spec:
+        serviceAccountName: ${SERVICE_ACCOUNT}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser:    6000
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: isamaffinity
+                    operator: In
+                    values:
+                    - ${APP_NAME}-webseal
+                topologyKey: kubernetes.io/hostname
+        containers:
+        - env:
+          - name: SERVICE
+            value: webseal
+          - name: CONTAINER_TIMEZONE
+            value: ${TIMEZONE}
+          - name: CONFIG_SERVICE_URL
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-service-url
+          - name: CONFIG_SERVICE_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-username
+          - name: CONFIG_SERVICE_USER_PWD
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-password
+          image: ${ISVA_IMAGE_NAME}-wrp:${ISVA_VERSION}
+          imagePullPolicy: IfNotPresent
+          name: ${APP_NAME}-webseal
+          ports:
+          - containerPort: 9443
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          livenessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+              - livenessProbe
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+          - mountPath: /var/application.logs
+            name: ${APP_NAME}-webseal-logs
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: ${APP_NAME}-webseal-logs
+          emptyDir: {}
+
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-runtime
+    name: ${APP_NAME}-runtime
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: ${APP_NAME}-runtime
+    triggers:
+      - type: ConfigChange
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: ${APP_NAME}-core
+          name: ${APP_NAME}-runtime
+      spec:
+        serviceAccountName: ${SERVICE_ACCOUNT}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser:    6000
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: name
+                    operator: In
+                    values:
+                    - ${APP_NAME}-runtime
+                topologyKey: kubernetes.io/hostname
+        containers:
+        - env:
+          - name: CONTAINER_TIMEZONE
+            value: ${TIMEZONE}
+          - name: CONFIG_SERVICE_URL
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-service-url
+          - name: CONFIG_SERVICE_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-username
+          - name: CONFIG_SERVICE_USER_PWD
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-password
+          image: ${ISVA_IMAGE_NAME}-runtime:${ISVA_VERSION}
+          imagePullPolicy: IfNotPresent
+          name: ${APP_NAME}-runtime
+          ports:
+          - containerPort: 443
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          livenessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+              - livenessProbe
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 443
+              path: /sps/static/ibm-logo.png
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+          - mountPath: /var/application.logs
+            name: ${APP_NAME}-runtime-logs
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: ${APP_NAME}-runtime-logs
+          emptyDir: {}
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: ${APP_NAME}
+      name: ${APP_NAME}-dsc
+    name: ${APP_NAME}-dsc
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: ${APP_NAME}-dsc
+    triggers:
+      - type: ConfigChange
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: ${APP_NAME}
+          name: ${APP_NAME}-dsc
+          isvaaffinity: ${APP_NAME}-dsc
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: isvaaffinity
+                    operator: In
+                    values:
+                    - ${APP_NAME}-dsc
+                topologyKey: kubernetes.io/hostname
+        serviceAccountName: ${SERVICE_ACCOUNT}
+        containers:
+        - env:
+          - name: INSTANCE
+            value: "1"
+          - name: CONTAINER_TIMEZONE
+            value: ${TIMEZONE}
+          - name: CONFIG_SERVICE_URL
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-service-url
+          - name: CONFIG_SERVICE_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-username
+          - name: CONFIG_SERVICE_USER_PWD
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}-core
+                key: config-read-password
+          image: ${ISVA_IMAGE_NAME}-dsc:${ISVA_VERSION}
+          imagePullPolicy: IfNotPresent
+          name: ${APP_NAME}-dsc
+          ports:
+          - containerPort: 9443
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          livenessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+              - livenessProbe
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+              - /sbin/health_check.sh
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 2
+          volumeMounts:
+          - mountPath: /var/application.logs
+            name: ${APP_NAME}-dsc-logs
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: ${APP_NAME}-dsc-logs
+          emptyDir: {}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    name: ${CONFIG_SERVICE}
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-config
+  spec:
+    ports:
+    - name: lmi
+      port: 9443
+      protocol: TCP
+    selector:
+      name: ${APP_NAME}-config
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    name: ${WEBSEAL_SERVICE}
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-webseal
+  spec:
+    ports:
+    - name: webseal
+      port: 9443
+      protocol: TCP
+    selector:
+      name: ${APP_NAME}-webseal
+    sessionAffinity: None
+    type: NodePort
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    name: ${RUNTIME_SERVICE}
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-runtime
+  spec:
+    ports:
+    - name: https
+      port: 9443
+      protocol: TCP
+    selector:
+    selector:
+      name: ${APP_NAME}-runtime
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    name: ${DSC_SERVICE}
+    labels:
+      app: ${APP_NAME}-core
+      name: ${APP_NAME}-dsc
+  spec:
+    ports:
+    - name: https
+      port: 9443
+      protocol: TCP
+    selector:
+    selector:
+      name: ${APP_NAME}-dsc
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+parameters:
+  - displayName: Application Name
+    description: This is the name for the application which is used to create unique object names in the cluster.
+    name: APP_NAME
+    value: isam
+  - displayName: ISAM Image Version
+    description: The tag that will be used to pull the ibmcom/isam image.
+    name: ISVA_VERSION
+    value: 10.0.5.0
+  - displayName: Config Service Name
+    description: The name for the config service.  Also used as the hostname for connections within the cluster.
+    name: CONFIG_SERVICE
+    value: isvaconfig
+  - displayName: Runtime Service Name
+    description: The name for the runtime service.  Also used as the hostname for connections within the cluster.
+    name: RUNTIME_SERVICE
+    value: isvaruntime
+  - displayName: Webseal Service Name
+    description: The name for the webseal service.  Also used as the hostname for connections within the cluster.
+    name: WEBSEAL_SERVICE
+    value: isvawebseal
+  - displayName: Webseal Service Name
+    description: The name for the webseal service.  Also used as the hostname for connections within the cluster.
+    name: DSC_SERVICE
+    value: isvadsc
+  - displayName: Config Read Username
+    description: The username which will be used to pull configuration from the config service.
+      If not using cfgsvc or admin, this user must be created using the LMI.
+    name: CONFIG_ID
+    value: cfgsvc
+  - displayName: Config Read password
+    description: The password that will be used to authenticate as the Config Read user.
+    name: CONFIG_PW
+    from: '[a-zA-Z0-9]{16}'
+    generate: expression
+  - displayName: Access Manager Image Name 
+    description: This is the name used to identify access-manager images. The supporting containers should have a
+       \'-wrp\' or \'-runtime\' suffixes. This value should include the registry domain.
+    name: ISVA_IMAGE_NAME
+    value: icr.io/isva/verify-access
+  - displayName: Timezone
+    description: The timezone for message logging (e.g. Europe/London)
+    name: TIMEZONE
+    value: Etc/UTC
+  - displayName: Service Account
+    description: This is the (existing) Service Account for running the pods.  It must allow runAsNonRoot, SETUID, SETGID.
+    name: SERVICE_ACCOUNT
+    value: verifyaccess

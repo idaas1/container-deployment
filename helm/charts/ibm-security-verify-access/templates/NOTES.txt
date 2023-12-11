@@ -1,4 +1,5 @@
 {{- include "sch.config.init" (list . "isva.sch.chart.config.values") -}}
+{{- $dot := . }}
 
 General Information:
 ====================
@@ -6,80 +7,89 @@ General Information:
 To obtain the administrator password execute the following command:
     kubectl get secret --namespace {{ .Release.Namespace }} {{ template "admin.secret" . }} -o jsonpath="{.data.{{ template "admin.secret.key" . }}}" | base64 --decode; echo
 
-Configuration
-=============
+Configuration Service
+=====================
 
-The configuration server should be used to configure the environment.
+The configuration service should be used to configure the environment.
 
 {{- if contains "NodePort" .Values.isvaconfig.service.type }}
 
-To connect to your server obtain the external IP address and port:
+The configuration service has been configured with a NodePort service.
+To connect to the service, obtain the external IP address and port:
 
 HOST=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath='{.items[0].status.addresses[0].address}')
+{{- if .Values.isvaconfig.service.servicename }}
+PORT=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ printf "%s" .Values.isvaconfig.service.servicename }} -o jsonpath='{.spec.ports[0].nodePort}')
+{{- else }}
 PORT=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ template "config.name" . }} -o jsonpath='{.spec.ports[0].nodePort}')
+{{- end }}
 
-The server can then be accessed at the following URL: https://$HOST:$PORT
+The service can then be accessed at the following URL: https://$HOST:$PORT
 
-{{- else if contains "ClusterIP" .Values.isvaconfig.service.type }}
+{{- else if contains "ClusterIP" .Values.isvaconfig.service.type -}}
 
-To connect to your server using kubernetes port forwarding:
+The configuration service has been configured with a ClusterIP service.
+To connect to the service, use kubernetes port forwarding:
 
 POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ template "config.name" . }}" -o jsonpath="{.items[0].metadata.name}")
 kubectl port-forward $POD_NAME 9443:{{ template "admin.port" . }}
 
-The server can then be accessed at the following URL: https://127.0.0.1:9443
+The service can then be accessed at the following URL: https://127.0.0.1:9443
 
 {{- end }}
+You could also configure an ingress or load balancer.
 
-Web Reverse Proxy
-=================
+
+Web Reverse Proxy Instances
+===========================
 
 The Web Reverse Proxy instances should be used as an entry point into the environment.  The instance names in this release are:
 {{- range .Values.isvawrp.container.instances }}
   - {{ .name }}
 {{- end }}
+{{- $defaultservicetype := (default "ClusterIP" .Values.isvawrp.service.type) }}
+{{- range $index, $inst := .Values.isvawrp.container.instances }}
+{{- $servicetype := (default $defaultservicetype $inst.servicetype) }}
+{{- if eq "NodePort" $servicetype }}
 
-{{- if contains "NodePort" .Values.isvawrp.service.type }}
+The {{ $inst.name }} instance has been configured with a NodePort service.
+To connect to the instance, obtain the external IP address and port:
 
-To connect to your server obtain the external IP address and port:
-
-HOST=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath='{.items[0].status.addresses[0].address}')
-PORT=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "wrp.name" (list . "<instance_name>") }} -o jsonpath='{.spec.ports[0].nodePort}')
-
-The server can then be accessed at the following URL: https://$HOST:$PORT
-
-{{- else if contains "ClusterIP" .Values.isvawrp.service.type }}
-
-To connect to your server using kubernetes port forwarding:
-
-POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ include "wrp.name" (list . "<instance_name>") }}" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $POD_NAME 9443:{{ template "runtime.port" . }}
-
-The server can then be accessed at the following URL: https://127.0.0.1:9443
-
+HOST=$(kubectl get nodes --namespace {{ $.Release.Namespace }} -o jsonpath='{.items[0].status.addresses[0].address}')
+{{- if $inst.servicename }}
+PORT=$(kubectl get svc --namespace {{ $.Release.Namespace }} {{ printf "%s" $inst.servicename }} -o jsonpath='{.spec.ports[0].nodePort}')
+{{- else }}
+PORT=$(kubectl get svc --namespace {{ $.Release.Namespace }} {{ include "wrp.name" (list $dot $inst.name) }} -o jsonpath='{.spec.ports[0].nodePort}')
 {{- end }}
 
-To connect to the administation Web service of the container use kubernetes port forwarding:
+The instance can then be accessed at the following URL: https://$HOST:$PORT
 
-POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ include "wrp.name" (list . "<instance_name>") }}" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $POD_NAME 9443:{{ template "admin.port" . }}
+{{- else }}
 
-The server can then be accessed at the following URL: https://127.0.0.1:9443
+The {{ $inst.name }} instance has been configured with a ClusterIP service.
+To connect to the instance, use kubernetes port forwarding:
+
+POD_NAME=$(kubectl get pods --namespace {{ $.Release.Namespace }} -l "app={{ include "wrp.name" (list $dot $inst.name) }}" -o jsonpath="{.items[0].metadata.name}")
+kubectl port-forward $POD_NAME 9443:{{ template "runtime.port" . }}
+
+The instance can then be accessed at the following URL: https://127.0.0.1:9443
+
+{{- end }}
+You could also set up an ingress or loadbalancer.
+
+{{- end }}
 
 {{- if .Values.isvaruntime.container.enabled }}
 
 Runtime
 =======
 
-The federation and advanced access control runtime requests should always be serviced via a secure Web reverse proxy instance.  The runtime service can be accessed by the secure Web reverse proxy over SSL through the {{ template "runtime.name" . }} host and {{ template "runtime.port" . }} port.
-
-To connect to the administation Web service of the container use kubernetes port forwarding:
-
-POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ template "runtime.name" . }}" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $POD_NAME 9443:{{ template "admin.port" . }}
-
-The server can then be accessed at the following URL: https://127.0.0.1:9443
-
+The federation and advanced access control runtime requests should always be serviced via a secure Web reverse proxy instance.
+{{- if .Values.isvaruntime.service.servicename }}
+The runtime service can be accessed by the secure Web reverse proxy over SSL through the {{ printf "%s" .Values.isvaruntime.service.servicename }} host and {{ template "runtime.port" . }} port.
+{{- else }}
+The runtime service can be accessed by the secure Web reverse proxy over SSL through the {{ template "runtime.name" . }} host and {{ template "runtime.port" . }} port.
+{{- end }}
 {{- end }}
 
 {{- if .Values.isvadsc.container.enabled }}
@@ -87,31 +97,22 @@ The server can then be accessed at the following URL: https://127.0.0.1:9443
 DSC
 ===
 
-The distributed session cache service should only ever be accessed byVerify Accesscomponents running in the same cluster.
-
+The distributed session cache service should only ever be accessed by Verify Access components running in the same cluster.
+{{- if .Values.isvadsc.service.servicename }}
+The primary distributed session cache service can be accessed using the {{ printf "%s" .Values.isvadsc.service.servicename }} host and {{ template "runtime.port" . }} port.
+{{- else }}
 The primary distributed session cache service can be accessed using the {{ include "dsc.name" (list . "primary") }} host and {{ template "runtime.port" . }} port.
-
+{{- end }}
 {{- if .Values.isvadsc.container.useReplica }}
 
+{{- if .Values.isvadsc.service.servicename }}
+The secondary distributed session cache service can be accessed using the {{ printf "%s2" .Values.isvadsc.service.servicename }} host and {{ template "runtime.port" . }} port.
+{{- else -}}
 The secondary distributed session cache service can be accessed using the {{ include "dsc.name" (list . "secondary") }} host and {{ template "runtime.port" . }} port.
+{{- end }}
 
 The two distributed session cache replicas will communicate over the {{ template "replica.port" . }} port.
 {{- end }}
-
-To connect to the administation Web service of the primary container use kubernetes port forwarding:
-
-POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ include "dsc.name" (list . "primary") }}" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $POD_NAME 9443:{{ template "admin.port" . }}
-
-{{- if .Values.isvadsc.container.useReplica }}
-
-To connect to the administation Web service of the secondary container use kubernetes port forwarding:
-
-POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ include "dsc.name" (list . "secondary") }}" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $POD_NAME 9443:{{ template "admin.port" . }}
-{{- end }}
-
-The server can then be accessed at the following URL: https://127.0.0.1:9443
 
 {{- end }}
 
@@ -123,7 +124,11 @@ PostgreSQL
 The PostgreSQL service provided is not meant for production and should only be used in proof of concept or demo environments.
 
 The database has been configured with the following attributes:
+{{- if .Values.isvapostgresql.service.servicename }}
+  host:          {{ printf "%s" .Values.isvapostgresql.service.servicename }}
+{{- else }}
   host:          {{ template "postgresql.name" . }}
+{{- end }}
   port:          {{ template "postgresql.port" . }}
   {{- if .Values.isvapostgresql.container.keySecretName }}
   secure:        true
@@ -144,7 +149,11 @@ OpenLDAP
 The OpenLDAP service provided is not meant for production and should only be used in PoC or demonstration environments.
 
 The directory has been configured with the following attributes:
+{{- if .Values.isvaopenldap.service.servicename }}
+  host:          {{ printf "%s" .Values.isvaopenldap.service.servicename }}
+{{- else }}
   host:          {{ template "openldap.name" . }}
+{{- end }}
   port:          636
   domain:        {{ template "openldap.domain" . }}
   root user:     cn=root,secAuthority=Default

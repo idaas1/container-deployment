@@ -27,15 +27,6 @@ this (by the DNS naming spec).
 {{- end -}}
 
 {{/*
-Create the fully qualified name of the configuration service URL.
-We truncate at 63 chars because some Kubernetes name fields are limited to
-this (by the DNS naming spec).
-*/}}
-{{- define "config.service.url" -}}
-{{- printf "https://%s:9443/shared_volume" (printf "%s-isvaconfig" .Release.Name | trunc 63 | trimSuffix "-") -}}
-{{- end -}}
-
-{{/*
 The name of our persistent volume claim.
 */}}
 {{- define "config.pvc.name" -}}

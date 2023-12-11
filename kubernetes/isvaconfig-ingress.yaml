@@ -1,4 +1,4 @@
- apiVersion: networking.k8s.io/v1beta1
+ apiVersion: networking.k8s.io/v1
  kind: Ingress
  metadata:
    name: isvaconfig
@@ -13,6 +13,9 @@
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: isvaconfig
-          servicePort: 9443
+          service:
+            name: isvaconfig
+            port:
+              number: 9443

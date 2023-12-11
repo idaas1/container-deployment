@@ -13,17 +13,19 @@ fi
 
 cd $RUNDIR/iamlab
 
+
 echo "Updating .env using common/env-config.sh"
 mv .env .env.original
 sed  '/_IP/d' .env.original > .env
 mv .env .env.original
-sed  '/ISAM_VERSION/d' .env.original > .env
+sed  '/ISVA_VERSION/d' .env.original > .env
 mv .env .env.original
 sed  '/LDAP_VERSION/d' .env.original > .env
 mv .env .env.original
 sed  '/DB_VERSION/d' .env.original > .env
 rm .env.original
 cat >> .env <<EOF
+CONTAINER_BASE=${CONTAINER_BASE}
 ISVA_VERSION=${ISVA_VERSION}
 LDAP_VERSION=${LDAP_VERSION}
 DB_VERSION=${DB_VERSION}
@@ -31,4 +33,6 @@ LMI_IP=${MY_LMI_IP}
 WEB1_IP=${MY_WEB1_IP}
 WEB2_IP=${MY_WEB2_IP}
 EOF
+
+
 echo "Done."

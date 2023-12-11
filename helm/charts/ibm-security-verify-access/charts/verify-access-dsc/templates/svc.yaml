@@ -14,7 +14,19 @@ apiVersion: v1
 kind: Service
 
 metadata:
+{{- if (eq $element "primary") }}
+  {{- if $.Values.service.servicename }}
+  name: {{ $.Values.service.servicename }}
+  {{- else }}
   name: {{ include "dsc.name" (list $dot $element) }}
+  {{- end }}
+{{- else }}
+  {{- if $.Values.service.servicename }}
+  name: {{ printf "%s2" $.Values.service.servicename }}
+  {{- else }}
+  name: {{ include "dsc.name" (list $dot $element) }}
+  {{- end }}
+{{- end }}
   labels:
 {{ include "sch.metadata.labels.standard" (list $dot "") | indent 4 }}
 
@@ -24,8 +36,6 @@ spec:
   ports:
    - name: {{ include "dsc.service.name" (list $dot $element) }}
      port: {{ template "runtime.port" $dot }}
-   - name: {{ include "dsc.admin.service.name" (list $dot $element) }}
-     port: {{ template "admin.port" $dot }}
    - name: {{ include "dsc.replica.service.name" (list $dot $element) }}
      port: {{ template "replica.port" $dot }}
 
@@ -37,4 +47,3 @@ spec:
 {{- end -}}
 
 {{- end -}}
-

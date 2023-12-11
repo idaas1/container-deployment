@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: template.openshift.io/v1
 kind: Template
 labels:
   template: verify-access-postgresql
@@ -30,6 +30,7 @@ objects:
     labels:
       app: ${APP_NAME}
   spec:
+    storageClassName: ${STORAGE_CLASS}
     accessModes:
     - ReadWriteOnce
     resources:
@@ -81,7 +82,7 @@ objects:
         securityContext:
           runAsNonRoot: true
           runAsUser:    70
-          fsGroup:      0
+          fsGroup: ${{FS_GROUP}}
         containers:
         - env:
           - name: POSTGRES_USER
@@ -104,6 +105,16 @@ objects:
           image: docker.io/ibmcom/verify-access-postgresql:${DB_VERSION}
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 10
           ports:
           - containerPort: 5432
             protocol: TCP
@@ -154,7 +165,7 @@ parameters:
   - displayName: Image Version
     description: The tag that will be used to pull the ibmcom/verify-access-postgresql image.
     name: DB_VERSION
-    value: 10.0.0.0
+    value: 10.0.3.1
   - displayName: Administrator Username
     description: The username for the database administrator.
     name: ADMIN_ID
@@ -172,7 +183,15 @@ parameters:
     description: The (existing) Secret for crypto data.  File required is server.pem.
     name: KEY_SECRET
     value: postgresql-keys
+  - displayName: Storage class
+    description: Storage class that will be requested by PVC.
+    name: STORAGE_CLASS
+    value: default
   - displayName: Service Account
     description: This is the (existing) Service Account for running the pods.  It must allow runAsNonRoot.
     name: SERVICE_ACCOUNT
-    value: verifyaccess
+    value: verifyaccess-nonroot
+  - displayName: fsGroup
+    description: Value for the fsGroup to be added to security context.  Needs to be 0 if volumes mounted as root.
+    name: FS_GROUP
+    value: '0'

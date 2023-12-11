@@ -9,16 +9,15 @@
 global:
   # Common image variables
   image:
-    ldaprepository: ibmcom/verify-access-openldap:10.0.0.0
+    ldaprepository: ibmcom/verify-access-openldap:10.0.2.0
     pullPolicy:   IfNotPresent
 
   # Container configuration.
   container:
     snapshot:            ""
     fixpacks:            ""
-    autoReloadInterval:
     timezone:           "Etc/UTC"
-    
+
   # Persistence Storage
   persistence:
     enabled: true

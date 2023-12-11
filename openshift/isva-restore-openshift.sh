@@ -49,8 +49,9 @@ oc cp ${SNAPSHOT} ${ISVACONFIG}:/var/shared/snapshots
 done
 
 rm -rf $TMPDIR
-echo "Restarting Config Container..."
+
 # Restart config container to apply updated files
-oc exec ${ISVACONFIG} -- isva_cli -c reload all
+echo "Killing Config Pod (a new one will be started)..."
+oc delete pod ${ISVACONFIG}
 
 echo "Done."

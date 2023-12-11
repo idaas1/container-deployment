@@ -21,7 +21,7 @@ ISVACONFIG="$(oc get --no-headers=true pods -l name=verifyaccess-config -o custo
 ABSTMP=$(cd -P "$TMPDIR" && pwd)
 
 # Copy the current snapshots from isvaconfig container
-SNAPSHOTS=`oc exec ${ISVACONFIG} ls /var/shared/snapshots`
+SNAPSHOTS=`oc exec ${ISVACONFIG} -- ls /var/shared/snapshots`
 for SNAPSHOT in $SNAPSHOTS; do
 oc cp ${ISVACONFIG}:/var/shared/snapshots/$SNAPSHOT $ABSTMP/$SNAPSHOT
 done
@@ -39,6 +39,6 @@ oc exec ${POSTGRESQL} -- /usr/local/bin/pg_dump isva > $TMPDIR/isva.db
 
 cp -R ${DOCKERKEYS} ${TMPDIR}
 
-tar -cf isva-backup-$RANDOM.tar -C ${TMPDIR} .
+tar -cvf isva-backup-$RANDOM.tar -C ${TMPDIR} .
 rm -rf ${TMPDIR}
 echo Done.

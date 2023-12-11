@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  creationTimestamp: null
+  name: verifyaccess-snapmgr
+  labels:
+    app: verifyaccess
+spec:
+  host: snapmgr.iamlab.ibm.com
+  port:
+    targetPort: snapmgr
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: passthrough
+  to:
+    kind: Service
+    name: isvasnapmgr
+    weight: 100
+  wildcardPolicy: None

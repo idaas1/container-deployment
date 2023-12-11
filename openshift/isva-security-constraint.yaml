@@ -7,7 +7,7 @@
 # required by the container.
 
 kind: SecurityContextConstraints
-apiVersion: v1
+apiVersion: security.openshift.io/v1
 
 # The name and description for the security context constraint to be
 # created.
@@ -26,9 +26,8 @@ allowHostPorts:           false
 allowPrivilegedContainer: false
 readOnlyRootFilesystem:   false
 
-# The priority is set to '10', otherwise the security constraint does
-# not take affect when applied to a service account.
-priority: 10
+# Setting priority to less than 10 to avoid issues with oauth-authentication. (https://access.redhat.com/solutions/4727461)
+priority: 5
 
 # The Verify Access containers needs to be run as a 'custom' user, but do
 # not need to run as the root user.

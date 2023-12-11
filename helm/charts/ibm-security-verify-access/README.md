@@ -18,7 +18,12 @@ This chart will deploy an IBM Security Verify Access environment.  This environm
 | isvapostgresql | This container provides a sample database which can be used by IBM Security Verify Access.  It is not designed to be used in production and should only ever be used in development or proof of concept environments.
 | isvaopenldap | This container provides a sample LDAP directory which can be used by IBM Security Verify Access.  It is not designed to be used in production and should only ever be used in development or proof of concept environments.
 
-The chart will make use of the verify access docker image, which is available on Docker Hub: [https://hub.docker.com/r/ibmcom/verify-access](https://hub.docker.com/r/ibmcom/verify-access).  
+The chart makes use of the verify access docker images, which are available on Docker Hub: * [https://hub.docker.com/r/ibmcom/verify-access](https://hub.docker.com/r/ibmcom/verify-access)
+[https://hub.docker.com/r/ibmcom/verify-access-wrp](https://hub.docker.com/r/ibmcom/verify-access-wrp)
+[https://hub.docker.com/r/ibmcom/verify-access-runtime](https://hub.docker.com/r/ibmcom/verify-access-runtime)
+[https://hub.docker.com/r/ibmcom/verify-access-dsc](https://hub.docker.com/r/ibmcom/verify-access-dsc)
+[https://hub.docker.com/r/ibmcom/verify-access-openldap](https://hub.docker.com/r/ibmcom/verify-access-openldap)
+[https://hub.docker.com/r/ibmcom/verify-access-postgresql](https://hub.docker.com/r/ibmcom/verify-access-postgresql)
 
 ## Prerequisites
 
@@ -211,7 +216,7 @@ To uninstall/delete the `my-release` deployment:
 $ helm delete my-release
 ```
 
-The command removes all of the Kubernetes components associated with the chart and deletes the release.  
+The command removes all of the Kubernetes components associated with the chart and deletes the release.
 
 When deleting a release with stateful sets the associated persistent volume will need to be deleted.  Execute the following command after deleting the chart release to clean up orphaned Persistent Volumes.
 
@@ -226,19 +231,21 @@ The following tables list the configurable parameters of the Verify Access chart
 
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
-| `global.image.repository` | The image repository. | `ibmcom/verify-access:10.0.0.0` |
-| `global.image.dbrepository` | The image repository for the postgresql server. | `ibmcom/verify-access-postgresql:10.0.0.0` |
-| `global.image.ldaprepository` | The image repository for the openldap server. | `ibmcom/verify-access-openldap:10.0.0.0` |
+| `global.image.configrepository` | The config container image repository. | `ibmcom/verify-access:10.0.3.1` |
+| `global.image.wrprepository` | The web reverse proxy image repository. | `ibmcom/verify-access-wrp:10.0.3.1` |
+| `global.image.runtimerepository` | The runtime repository. | `ibmcom/verify-access-runtime:10.0.3.1` |
+| `global.image.dscrepository` | The dsc repository. | `ibmcom/verify-access-dsc:10.0.3.1` |
+| `global.image.dbrepository` | The image repository for the postgresql server. | `ibmcom/verify-access-postgresql:10.0.3.1` |
+| `global.image.ldaprepository` | The image repository for the openldap server. | `ibmcom/verify-access-openldap:10.0.3.1` |
 | `global.image.pullPolicy` | The image pull policy. | `IfNotPresent` |
 | `global.imageCredentials.dockerSecret` | The name of an existing secret which contains the Docker Store credentials. | (none) |
 | `global.container.snapshot` | The name of the configuration data snapshot that is to be used when starting the container. This will default to the latest published configuration.| latest published snapshot
 | `global.container.fixpacks` | A space-separated, ordered list of fix packs to be applied when starting the container. If this environment variable is not present, any fix packs present in the fixpacks directory of the configuration volume will be applied in alphanumeric order. | all available fix packs
 | `global.container.adminSecret` | The name of an existing secret which contains the administrator password (key: adminPassword). If no secret is supplied a new secret will be created with a randomly generated password.| (none) |
-| `global.container.autoReloadInterval` | The interval, in seconds, that the runtime containers will wait before checking to see if any new configuration is available. | disabled
 | `global.container.timezone` | The timezone that will be used when writing log messages.  If not set, timezone is set by host environment | Etc/UTC
 | `global.persistence.enabled` | Whether to use a PVC to persist data. | `true` |
 | `global.persistence.useDynamicProvisioning` | Whether the requested volume will be automatically provisioned if dynamic provisioning is available. | `true` |
-
+| `global.configservicename` | Set a specific service name for the config service.  | `<release>-isvaconfig` |
 
 ### Configuration Service
 
@@ -260,14 +267,14 @@ The following tables list the configurable parameters of the Verify Access chart
 | --------- | ----------- | ------- |
 | `isvawrp.container.instances` | An array of instances to be created. | See Below |
 | `isvawrp.container.instances.name` | The name of the instance | `default` |
+| `isvawrp.container.instances.servicename` | Service name of the instance | `<release>wrp-<instance>` |
+| `isvawrp.container.instances.servicetype` | ClusterIP or NodePort | `ClusterIP` |
 | `isvawrp.container.instances.nodePort` | The nodePort (if service type is NodePort). | empty |
 | `isvawrp.container.instances.replicas` | The number of replicas to start for the instance. | `1` |
 | `isvawrp.resources.requests.memory` | The amount of memory to be allocated to each Web Reverse Proxy instance. | `512Mi` |
 | `isvawrp.resources.requests.cpu` | The amount of CPU to be allocated to each replica of each Web Reverse Proxy instance. | `500m` |
 | `isvawrp.resources.limits.memory` | The maximum amount of memory to be used by each replica of each Web Reverse Proxy instance. | `1Gi` |
 | `isvawrp.resources.limits.cpu` | The maximum amount of CPU to be used by each replica of each Web Reverse Proxy instance. | `1000m` |
-| `isvawrp.service.type` | The service type for the Web Reverse Proxy instances. | `NodePort` |
-| `isvawrp.service.nodePort` | The nodePort to use for the Web Reverse Proxy services (when service type is NodePort). | empty |
 
 ### Runtime Service
 
@@ -279,6 +286,7 @@ The following tables list the configurable parameters of the Verify Access chart
 | `isvaruntime.resources.requests.cpu` | The amount of CPU to be allocated to each replica of the runtime service. | `1000m` |
 | `isvaruntime.resources.limits.memory` | The maximum amount of memory to be used by each replica of the runtime service. | `2Gi` |
 | `isvaruntime.resources.limits.cpu` | The maximum amount of CPU to be used by each replica of the runtime service. | `2000m` |
+| `isvaruntime.service.servicename` | Service name for the runtime | `<release>-isvaruntime` |
 
 ### Distributed Session Cache
 
@@ -290,6 +298,7 @@ The following tables list the configurable parameters of the Verify Access chart
 | `isvadsc.resources.requests.cpu` | The amount of CPU to be allocated to each replica of the distributed session cache service. | `500m` |
 | `isvadsc.resources.limits.memory` | The maximum amount of memory to be used by each replica of the distributed session cache service. | `1Gi` |
 | `isvadsc.resources.limits.cpu` | The maximum amount of CPU to be used by each replica of the distributed session cache service. | `1000m` |
+| `isvadsc.service.servicename` | Service name for the DSC. Replica has 2 appended | `<release>-isvadsc-<primary|secondary>` |
 
 ### Database
 
@@ -304,6 +313,7 @@ The following tables list the configurable parameters of the Verify Access chart
 | `isvapostgresql.dataVolume.existingClaimName` | The name of an existing PersistentVolumeClaim to be used.| empty |
 | `isvapostgresql.dataVolume.storageClassName` | The storage class of the backing PVC. | empty |
 | `isvapostgresql.dataVolume.size` | The size of the data volume. | `20Gi` |
+| `isvapostgresql.service.servicename` | Service name for postgreSQL. | `<release>-isvapostgresql` |
 
 ### Directory
 
@@ -318,6 +328,7 @@ The following tables list the configurable parameters of the Verify Access chart
 | `isvaopenldap.dataVolume.existingClaimName` | The name of an existing PersistentVolumeClaim to be used.| empty |
 | `isvaopenldap.dataVolume.storageClassName` | The storage class of the backing PVC. | empty |
 | `isvaopenldap.dataVolume.size` | The size of the data volume. | `20Gi` |
+| `isvaopenldap.service.servicename` | Service name for postgreSQL. | `<release>-isvaopenldap` |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.  For example:
 
@@ -366,7 +377,7 @@ The chart mounts a [Persistent Volume](http://kubernetes.io/docs/user-guide/pers
 $ helm install --set "isvaconfig.dataVolume.existingClaimName=PVC_NAME" ...
 ```
 
-All containers within the chart will share the same persistent volume claim.  
+All containers within the chart will share the same persistent volume claim.
 
 ## Limitations
 

@@ -1,4 +1,4 @@
- apiVersion: extensions/v1beta1
+ apiVersion: networking.k8s.io/v1
  kind: Ingress
  metadata:
    name: iamlab-isvawrp-rp1
@@ -14,6 +14,9 @@
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: iamlab-isvawrp-rp1
-          servicePort: 443
+          service:
+            name: isvawrprp1
+            port:
+              number: 9443

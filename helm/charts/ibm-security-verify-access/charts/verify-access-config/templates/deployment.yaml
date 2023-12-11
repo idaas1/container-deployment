@@ -87,15 +87,13 @@ spec:
             - SETGID
             - SETUID
 
-        image: "{{ .Values.global.image.repository }}"
+        image: "{{ .Values.global.image.configrepository }}"
         imagePullPolicy: {{ default "IfNotPresent" .Values.global.image.pullPolicy | quote }}
         env:
         - name: SNAPSHOT
           value: {{ default "" .Values.global.container.snapshot | quote }}
         - name: FIXPACKS
           value: {{ default "" .Values.global.container.fixpacks | quote }}
-        - name: SERVICE
-          value: config
         - name: ADMIN_PWD
           valueFrom:
             secretKeyRef:
@@ -104,17 +102,31 @@ spec:
         - name: CONTAINER_TIMEZONE
           value: {{ default "" $.Values.global.container.timezone | quote }}
 
-        readinessProbe:
-          tcpSocket:
-            port:  {{ template "admin.port" . }}
-          initialDelaySeconds: 5
-          periodSeconds: 10
-
         livenessProbe:
-          tcpSocket:
+          exec:
+            command:
+            - /sbin/health_check.sh
+            - livenessProbe
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 6
+{{- if not $.Values.global.container.readinessProbeDisabled }}
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
             port: {{ template "admin.port" . }}
-          initialDelaySeconds: 120
-          periodSeconds: 20
+            path: /core/login
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 2
+{{- end }}
+        startupProbe:
+          exec:
+            command:
+            - /sbin/health_check.sh
+          failureThreshold: 30
+          periodSeconds: 10
+          timeoutSeconds: 2
 
         ports:
         - name: {{ .sch.chart.config.servicename }}

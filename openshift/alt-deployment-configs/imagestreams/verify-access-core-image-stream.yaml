@@ -30,9 +30,6 @@ message: |-
   Config Service Admin User: admin
   Config Service Admin Password: ${ADMIN_PW}
 
-  Non-Config Service REST User: admin
-  Non-Config Service REST Password: ${REST_PW}
-
   Config Reader Username: ${CONFIG_ID}
   Config Reader Password: ${CONFIG_PW}
   (This user must be created in the LMI)
@@ -99,7 +96,6 @@ objects:
   kind: Secret
   metadata:
     annotations:
-      template.openshift.io/expose-rest_password: '{.data[''rest-password'']}'
       template.openshift.io/expose-config_service_url: '{.data[''config-service-url'']}'
       template.openshift.io/expose-config_read_username: '{.data[''config-read-username'']}'
       template.openshift.io/expose-config_read_password: '{.data[''config-read-password'']}'
@@ -107,7 +103,6 @@ objects:
     labels:
       app: ${APP_NAME}-core
   stringData:
-    rest-password: ${REST_PW}
     config-service-url: https://${CONFIG_SERVICE}:9443/shared_volume
     config-read-username: ${CONFIG_ID}
     config-read-password: ${CONFIG_PW}
@@ -171,6 +166,7 @@ objects:
               command:
               - /sbin/health_check.sh
               - livenessProbe
+            initialDelaySeconds: 120
             periodSeconds: 10
             timeoutSeconds: 2
           readinessProbe:
@@ -178,7 +174,7 @@ objects:
               scheme: HTTPS
               port: 9443
               path: /core/login
-            initialDelaySeconds: 30
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 2
           volumeMounts:
@@ -196,6 +192,41 @@ objects:
             claimName: ${APP_NAME}-config
         - name: ${APP_NAME}-config-logs
           emptyDir: {}
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      build: ${APP_NAME}-dsc
+    name: ${APP_NAME}-dsc
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: '${APP_NAME}-dsc:latest'
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      dockerStrategy: {}
+      type: Docker
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      build: ${APP_NAME}-dsc
+    name: ${APP_NAME}-dsc
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - annotations: null
+        from:
+          kind: DockerImage
+          name: 'docker.io/ibmcom/verify-access-dsc:${ISVA_VERSION}'
+        importPolicy: {}
+        name: base
+        referencePolicy:
+          type: Source
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
@@ -220,7 +251,7 @@ objects:
           automatic: true
           from:
             kind: ImageStreamTag
-            name: ${APP_NAME}:latest
+            name: ${APP_NAME}-dsc:latest
           containerNames:
             - ${APP_NAME}-dsc1
     template:
@@ -257,18 +288,13 @@ objects:
             value: ${TIMEZONE}
           - name: SNAPSHOT
             value: baked.snapshot
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${APP_NAME}-core
-                key: rest-password
           image: ${APP_NAME}:latest
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}-dsc1
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
-          - containerPort: 444
+          - containerPort: 9444
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -321,7 +347,7 @@ objects:
           automatic: true
           from:
             kind: ImageStreamTag
-            name: ${APP_NAME}:latest
+            name: ${APP_NAME}-dsc:latest
           containerNames:
             - ${APP_NAME}-dsc2
     template:
@@ -358,18 +384,13 @@ objects:
             value: ${TIMEZONE}
           - name: SNAPSHOT
             value: baked.snapshot
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${APP_NAME}-core
-                key: rest-password
           image: ${APP_NAME}:latest
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}-dsc2
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
-          - containerPort: 444
+          - containerPort: 9444
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -422,7 +443,7 @@ objects:
           automatic: true
           from:
             kind: ImageStreamTag
-            name: ${APP_NAME}:latest
+            name: ${APP_NAME}-dsc:latest
           containerNames:
             - ${APP_NAME}-dsc3
     template:
@@ -459,18 +480,13 @@ objects:
             value: ${TIMEZONE}
           - name: SNAPSHOT
             value: baked.snapshot
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${APP_NAME}-core
-                key: rest-password
           image: ${APP_NAME}:latest
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}-dsc3
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
-          - containerPort: 444
+          - containerPort: 9444
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -523,7 +539,7 @@ objects:
           automatic: true
           from:
             kind: ImageStreamTag
-            name: ${APP_NAME}:latest
+            name: ${APP_NAME}-dsc:latest
           containerNames:
             - ${APP_NAME}-dsc4
     template:
@@ -560,18 +576,13 @@ objects:
             value: ${TIMEZONE}
           - name: SNAPSHOT
             value: baked.snapshot
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${APP_NAME}-core
-                key: rest-password
-          image: ${APP_NAME}:latest
+          image: ${APP_NAME}-dsc:latest
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}-dsc4
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
-          - containerPort: 444
+          - containerPort: 9444
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -600,6 +611,41 @@ objects:
         volumes:
         - name: ${APP_NAME}-dsc4-logs
           emptyDir: {}
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      build: ${APP_NAME}-runtime
+    name: ${APP_NAME}-runtime
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: '${APP_NAME}-runtime:latest'
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      dockerStrategy: {}
+      type: Docker
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      build: ${APP_NAME}-runtime
+    name: ${APP_NAME}-runtime
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - annotations: null
+        from:
+          kind: DockerImage
+          name: 'docker.io/ibmcom/verify-access-runtime:${ISVA_VERSION}'
+        importPolicy: {}
+        name: base
+        referencePolicy:
+          type: Source
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
@@ -624,7 +670,7 @@ objects:
           automatic: true
           from:
             kind: ImageStreamTag
-            name: ${APP_NAME}:latest
+            name: ${APP_NAME}-runtime:latest
           containerNames:
             - ${APP_NAME}-runtime
     template:
@@ -658,16 +704,11 @@ objects:
             value: ${TIMEZONE}
           - name: SNAPSHOT
             value: baked.snapshot
-          - name: ADMIN_PWD
-            valueFrom:
-              secretKeyRef:
-                name: ${APP_NAME}-core
-                key: rest-password
           image: ${APP_NAME}:latest
           imagePullPolicy: IfNotPresent
           name: ${APP_NAME}-runtime
           ports:
-          - containerPort: 443
+          - containerPort: 9443
             protocol: TCP
           resources: {}
           terminationMessagePath: /dev/termination-log
@@ -677,14 +718,15 @@ objects:
               command:
               - /sbin/health_check.sh
               - livenessProbe
+           initialDelaySeconds: 90
             periodSeconds: 10
             timeoutSeconds: 2
           readinessProbe:
             httpGet:
               scheme: HTTPS
-              port: 443
+              port: 9443
               path: /sps/static/ibm-logo.png
-            initialDelaySeconds: 30
+            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
           volumeMounts:
@@ -728,17 +770,13 @@ objects:
   spec:
     ports:
     - name: service
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: replication
-      port: 444
-      protocol: TCP
-      targetPort: 444
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
+    - name: replication
+      port: 9444
+      protocol: TCP
+      targetPort: 9444
     selector:
       name: ${APP_NAME}-dsc1
     sessionAffinity: None
@@ -756,17 +794,13 @@ objects:
   spec:
     ports:
     - name: service
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: replication
-      port: 444
-      protocol: TCP
-      targetPort: 444
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
+    - name: replication
+      port: 9444
+      protocol: TCP
+      targetPort: 9444
     selector:
       name: ${APP_NAME}-dsc2
     sessionAffinity: None
@@ -784,17 +818,13 @@ objects:
   spec:
     ports:
     - name: service
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: replication
-      port: 444
-      protocol: TCP
-      targetPort: 444
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
+    - name: replication
+      port: 9444
+      protocol: TCP
+      targetPort: 9444
     selector:
       name: ${APP_NAME}-dsc3
     sessionAffinity: None
@@ -812,17 +842,13 @@ objects:
   spec:
     ports:
     - name: service
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: replication
-      port: 444
-      protocol: TCP
-      targetPort: 444
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
+    - name: replication
+      port: 9444
+      protocol: TCP
+      targetPort: 9444
     selector:
       name: ${APP_NAME}-dsc4
     sessionAffinity: None
@@ -840,14 +866,9 @@ objects:
   spec:
     ports:
     - name: https
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: rest
       port: 9443
       protocol: TCP
       targetPort: 9443
-    selector:
     selector:
       name: ${APP_NAME}-runtime
     sessionAffinity: None
@@ -860,9 +881,9 @@ parameters:
     name: APP_NAME
     value: verifyaccess
   - displayName: Verify Access Image Version
-    description: The tag that will be used to pull the ibmcom/verify-access image.
+    description: The tag that will be used to pull the ibmcom/verify-access images.
     name: ISVA_VERSION
-    value: 10.0.0.0
+    value: 10.0.3.1
   - displayName: Config Service Name
     description: The name for the config service.  Also used as the hostname for connections within the cluster.
     name: CONFIG_SERVICE
@@ -879,11 +900,6 @@ parameters:
   - displayName: LMI Admin Password
     description: This will be the password for the config service admin user (for both Web and REST access)
     name: ADMIN_PW
-    from: '[a-zA-Z0-9]{16}'
-    generate: expression
-  - displayName: REST Access Password (non-config Nodes)
-    description: This will be the password for the admin user on non-config Nodes.
-    name: REST_PW
     from: '[a-zA-Z0-9]{16}'
     generate: expression
   - displayName: Image Pull Secret

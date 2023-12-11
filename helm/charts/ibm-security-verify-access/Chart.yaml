@@ -8,10 +8,10 @@ name: verify-access
 description: IBM Security Verify Access provides a simplified access management solution.
 icon: https://d1q6f0aelx0por.cloudfront.net/product-logos/32925feb-af2b-4b4c-8276-def2a031ed31-artwork2x.png
 
-version: 1.2.1
+version: 1.3.1
 tillerVersion: ">=2.9.1"
 engine: gotpl
-appVersion: 10.0.0.0
+appVersion: 10.0.3.1
 
 keywords:
   - isva

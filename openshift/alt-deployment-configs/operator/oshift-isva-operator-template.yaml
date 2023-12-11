@@ -1,0 +1,182 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: isva-operator-template
+metadata:
+  name: isva-operator-template
+  annotations:
+    openshift.io/display-name: IBM Verify Access Operator Deployment Template
+    iconClass: icon-sso
+    description: IBM Security Access Manager deployment template using the Verify Operator. Operator must be installed.
+    openshift.io/long-description: This template deploys the runtime services required for an IBM
+      Security Access Manager environment using the Verify Access Operator.
+    openshift.io/documentation-url: https://ibm.biz/isamdocker
+    openshift.io/provider-display-name: Lachlan Gleeson, IBM Security
+    openshift.io/support-url: https://ibm.biz/iamcommunity
+    tags: ibm, isam, isva, verify-access, verify-access-operator, verify-operator, verify
+message: |-
+
+  Sample deployment managed with the Verify Access operator. Each container type is managed by its own instance
+  of the IBMSecurityVerifyAccess kind.
+
+  This sample deployment can be modified to suit deployment needs.
+
+  > Note: The operator also supports installing fixpacks and attaching volumes to containers. This is beyond the scope 
+          of this demo.
+
+  Application Name: ${APP_NAME}
+
+  The following services have been created in your project:
+    - WebSEAL replicas: ${WRP_REPLICAS}
+    - Runtime replicas: ${RUNTIME_REPLICAS}
+    - Distributed Session Cache replicas: ${DSC_REPLICAS}
+objects:
+- apiVersion: ibm.com/v1
+  kind: IBMSecurityVerifyAccess
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    labels:
+      name: ${APP_NAME}-webseal
+    name: ${APP_NAME}-webseal
+  spec:
+    serviceAccountName: ${SERVICE_ACCOUNT}
+    image: ${ISVA_BASE_IMAGE_NAME}-wrp:${ISVA_VERSION}
+  # fixpacks:
+  #   - ${FIXPACKS}
+  # volumes: 
+  #   - name: ${VOLUMES}
+    snapshotId: ${SNAPSHOT}
+    instance: ${INSTANCE}
+    language: ${LANGUAGE}
+    replicas: ${{WRP_REPLICAS}}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APP_NAME}-webseal
+    labels:
+      app: ${APP_NAME}-webseal
+  spec:
+    ports:
+      - port: 9443
+        name: isvawebseal
+        protocol: TCP
+    selector:
+      app: ${APP_NAME}-webseal
+    type: NodePort
+
+- apiVersion: ibm.com/v1
+  kind: IBMSecurityVerifyAccess
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    labels:
+      name: ${APP_NAME}-runtime
+    name: ${APP_NAME}-runtime
+  spec:
+    serviceAccountName: ${SERVICE_ACCOUNT}
+    image: ${ISVA_BASE_IMAGE_NAME}-runtime:${ISVA_VERSION}
+  # fixpacks:
+  #   - ${FIXPACKS}
+  # volumes: 
+  #   - name: ${VOLUMES}
+    snapshotId: ${SNAPSHOT}
+    language: ${LANGUAGE}
+    replicas: ${{RUNTIME_REPLICAS}}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APP_NAME}-runtime
+    labels:
+      app: ${APP_NAME}-runtime
+  spec:
+    ports:
+      - port: 9443
+        name: isvaruntime
+        protocol: TCP
+    selector:
+      app: ${APP_NAME}-runtime
+    type: ClusterIP
+
+- apiVersion: ibm.com/v1
+  kind: IBMSecurityVerifyAccess
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    labels:
+      name: ${APP_NAME}-dsc
+    name: ${APP_NAME}-dsc
+  spec:
+    serviceAccountName: ${SERVICE_ACCOUNT}
+    image: ${ISVA_BASE_IMAGE_NAME}-dsc:${ISVA_VERSION}
+  # fixpacks:
+  #   - ${FIXPACKS}
+  # volumes: 
+  #   - name: ${VOLUMES}
+    snapshotId: ${SNAPSHOT}
+    language: ${LANGUAGE}
+    replicas: ${{DSC_REPLICAS}}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APP_NAME}-dsc
+    labels:
+      app: ${APP_NAME}-dsc
+  spec:
+    ports:
+      - port: 9443
+        name: isvadsc
+        protocol: TCP
+    selector:
+      app: ${APP_NAME}-dsc
+    type: ClusterIP
+
+parameters:
+  - dsiplaName: Deployment Name
+    description: Human name for the new Verify Access Operator managed deployment.
+    name: APP_NAME
+    value: isva-operator-sample
+  - displayName: Access Manager Image Name
+    description: This is the tag used to identify verify-access images. The required containers should have a
+       '-wrp', '-dsc' or '-runtime' suffix.
+    name: ISVA_BASE_IMAGE_NAME
+    value: icr.io/isva/verify-access
+  - displayName: Service Account
+    description: This is the (existing) Service Account for running the pods.
+    name: SERVICE_ACCOUNT
+    value: verifyaccess
+  - displayName: ISVA Image Version
+    description: The tag that will be used to pull the icr.io/isva image.
+    name: ISVA_VERSION
+    value: 10.0.6.0
+  - displayName: Verify Access WebSEAL Reverse Proxy Instance
+    description: WebSEAL instance to deploy. Only valid for WRP containers.
+    name: INSTANCE
+    from: '[a-zA-Z0-9]{100}'
+    value: default
+  - displayName: Verify Access Snapshot
+    description: Identifier of the snapshot to deploy
+    name: SNAPSHOT
+    value: published
+  - displayName: Language
+    description: Language is the language which will be used for messages which are logged by the deployment.
+    name: LANGUAGE
+    value: en_US.utf8
+  - displayName: WebSEAL Reverse proxy Replicas
+    description: The number of pods which will be started for the WebSEAL deployment.
+    name: WRP_REPLICAS
+    value: '1'
+    from: '[0-9]{10}'
+  - displayName: Access Control and Federation runtime proxy replicas
+    description: The number of pods which will be started for the runtime deployment.
+    name: RUNTIME_REPLICAS
+    value: '1'
+    from: '[0-9]{10}'
+  - displayName: Distributed Session Cache replicas
+    description: The number of pods which will be started for the dsc deployment.
+    name: DSC_REPLICAS
+    value: '1'
+    from: '[0-9]{10}'

@@ -9,9 +9,12 @@
 global:
   # Common image variables
   image:
-    repository:   ibmcom/verify-access:10.0.0.0
-    dbrepository: ibmcom/verify-access-postgresql:10.0.0.0
-    ldaprepository: ibmcom/verify-access-openldap:10.0.0.0
+    configrepository:   ibmcom/verify-access:10.0.3.1
+    wrprepository:   ibmcom/verify-access-wrp:10.0.3.1
+    runtimerepository:   ibmcom/verify-access-runtime:10.0.3.1
+    dscrepository:   ibmcom/verify-access-dsc:10.0.3.1
+    dbrepository: ibmcom/verify-access-postgresql:10.0.3.1
+    ldaprepository: ibmcom/verify-access-openldap:10.0.3.1
     pullPolicy:   IfNotPresent
 
   # Image credentials (not needed unless using a private repository)
@@ -23,13 +26,15 @@ global:
     snapshot:            ""
     fixpacks:            ""
     adminSecret:         ""
-    autoReloadInterval:
     timezone:            "Etc/UTC"
 
   # Persistence Storage
   persistence:
     enabled:                true
     useDynamicProvisioning: true
+
+  # Config container service Name
+  configservicename:
 
 ###############################################################################
 # Configuration container variables.
@@ -74,6 +79,8 @@ isvawrp:
   container:
     instances:
      - name: default
+       servicename:
+       servicetype: NodePort
        nodePort:
        replicas: 1
 
@@ -87,11 +94,6 @@ isvawrp:
     limits:
       memory: 1Gi
       cpu:    1000m
-
-  # Service Configuration.
-  service:
-    type: NodePort
-    nodePort:
 
 ###############################################################################
 # Runtime container variables.
@@ -114,6 +116,9 @@ isvaruntime:
       memory: 2Gi
       cpu:    2000m
 
+  service:
+    servicename:
+
 ###############################################################################
 # DSC container variables.
 
@@ -135,6 +140,9 @@ isvadsc:
       memory: 1Gi
       cpu:    1000m
 
+  service:
+    servicename:
+
 ###############################################################################
 # postgresql container variables.
 
@@ -155,6 +163,9 @@ isvapostgresql:
     limits:
       memory: 1Gi
       cpu:    1000m
+
+  service:
+    servicename:
 
   # Data Volume
   dataVolume:
@@ -189,6 +200,9 @@ isvaopenldap:
     limits:
       memory: 1Gi
       cpu:    1000m
+
+  service:
+    servicename:
 
   # Data Volume
   dataVolume:

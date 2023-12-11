@@ -1,0 +1,123 @@
+container:
+  k8s_deployments:
+    namespace: "default"
+    deployments: 
+    - "isamwebseal"
+    - "isamruntime"
+  admin_cfg:
+    session_timeout: 720
+  account_management:
+    users:
+    - name: "cfgsvc"
+      operation: "update"
+      password: !secret default/isva-secrets:cfgsvc-passwd
+  management_authorization:
+    authorization_enforcement: True
+    roles:
+    - operation: "update"
+      name: "Configuration Service"
+      users:
+      - name: "cfgsvc"
+        type: "local"
+      features:
+      - name: "shared_volume"
+        access: "w"
+  ssl_certificates:
+  - name: "lmi_trust_store"
+    signer_certificates:
+    - "pki/postgresql.pem"
+    - "pki/openldap.pem"
+  - name: "rt_profile_keys"
+    signer_certificates:
+    - "pki/postgresql.pem"
+  cluster:
+    runtime_database:
+      host: "postgresql"
+      port: 5432
+      type: "postgresql"
+      user: "postgres"
+      password: !secret default/isva-secrets:postgres-passwd
+      ssl: True
+      ssl_keystore: "rt_profile_keys"
+      db_name: "isam"
+  activation: #Activation codes
+    webseal: !secret default/isva-secrets:base-code
+    access_control: !secret default/isva-secrets:aac-code
+    federation: !secret default/isva-secrets:fed-code
+webseal:
+  runtime:
+    policy_server: "ldap"
+    user_registry: "ldap"
+    ldap:
+      host: "openldap"
+      port: 636
+      dn: !secret default/isva-secrets:ldap-binddn
+      dn_password: !secret default/isva-secrets:ldap-passwd
+      key_file: "lmi_trust_store"
+    clean_ldap: True
+    domain: "Default"
+    admin_user: !ecret default/isva-secrets:sec-user
+    admin_password: !secret default/isva-secrets:sec-passwd
+    admin_cert_lifetime: 1460
+    ssl_compliance: "fips"
+  reverse_proxy:
+  - name: "default"
+    host: "isamruntime"
+    http:
+      enabled: "no"
+    https:
+      enabled: "yes"
+    domain: "Default"
+    ldap:
+      ssl_yn: "yes"
+      port: 636
+      key_file: "lmi_trust_store"
+    aac_configuration:
+      runtime:
+        hostname: "isamruntime"
+        port: 9443
+        user: !secret default/isva-secrets:rtime-user
+        password: !secret default/isva-secrets:rtime-passwd
+      junction: "/mga"
+      reuse_certs: True
+      reuse_acls: True
+  pdadmin:
+    users:
+    - name: "testuser"
+      dn: "cn=testuser,dc=ibm,dc=com"
+      password: !secre default/isva-secrets:test-passwd
+access_control:
+  authentication:
+    policies:
+    - name: "Username Passwword"
+      description: "Username and password authentication policy."
+      enabled: true
+      uri: "urn:ibm:security:authentication:asf:password"
+      policy: "<Policy xmlns=\"urn:ibm:security:authentication:policy:1.0:schema\" PolicyId=\"urn:ibm:security:authentication:asf:password\"><Description>Username and password authentication policy.</Description><Step type=\"Authenticator\"><Authenticator AuthenticatorId=\"urn:ibm:security:authentication:asf:mechanism:password\"/></Step><Actions><Action On=\"null\" type=\"null\"><AttributeAssignments/></Action></Actions></Policy>"
+    mechanisms:
+    - id: "7"
+      name: "Username Passowrd"
+      type: "Username Password"
+      description: "Username password authentication"
+      uri: "urn:ibm:security:authentication:asf:mechanism:password"
+      properties:
+      - usernamePasswordAuthentication.enableLastLogin: "false"
+      - usernamePasswordAuthentication.loginFailuresPersistent: "false"
+      - usernamePasswordAuthentication.maxServerConnections: "16"
+      - usernamePasswordAuthentication.mgmtDomain: "Default"
+      - usernamePasswordAuthentication.sslServerStartTLS: "false"
+      - usernamePasswordAuthentication.useFederatedDirectoriesConfig: "false"
+      - usernamePasswordAuthentication.userSearchFilter: "(|(objectclass=ePerson)(objectclass=Person))"
+      - usernamePasswordAuthentication.ldapBindDN: !secret default/isva-secrets:ldap-binddn
+      - usernamePasswordAuthentication.ldapHostName: "openldap"
+      - usernamePasswordAuthentication.ldapBindPwd: !secret default/isva-secrets:ldap-passwd
+      - usernamePasswordAuthentication.ldapPort: "636"
+      - usernamePasswordAuthentication.sslEnabled: "true"
+      - usernamePasswordAuthentication.sslTrustStore: "lmi_trust_store"
+      attributes:
+      - selector: "mobile"
+        name: "mobileNumber"
+        namespace: "urn:ibm:security:authentication:asf:mechanism:password"
+      - selector: "mail"
+        name: "emailAddress"
+        namespace: "urn:ibm:security:authentication:asf:mechanism:password"
